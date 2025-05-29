@@ -4,12 +4,14 @@ import userAuth from '../middlewares/auth.js';
 
 const userRouter = express.Router();
 
-// Define routes correctly
-userRouter.post('/register', registerUser); // For user registration
-userRouter.post('/login', LoginUser);      // For user login
-userRouter.get('/credits',userAuth, userCredits);  //For Credits
-userRouter.get('/razor-pay',userAuth, paymentRazorpay);  //For Payments
-userRouter.post('/verify-razor', verifyRazorpay);
+// Public routes
+userRouter.post('/register', registerUser);
+userRouter.post('/login', LoginUser);
+
+// Protected routes - require authentication
+userRouter.get('/credits', userAuth, userCredits);
+userRouter.post('/pay-razor', userAuth, paymentRazorpay);  // Changed to POST and fixed path
+userRouter.post('/verify-razor', userAuth, verifyRazorpay);
 
 export default userRouter;
 

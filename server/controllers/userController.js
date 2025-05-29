@@ -1,106 +1,139 @@
 import userModel from "../model/usermodel.js";
 import bcrypt from 'bcrypt'
-import razorpay from 'razorpay'
+import Razorpay from 'razorpay'
 import jwt from 'jsonwebtoken'
-import transactionModel from "../model/transactionModel.js";
+import { transactionModel } from "../model/transactionModel.js";
 
 const registerUser = async (req, res) => {
     try {
         const { name, email, password } = req.body;
         if (!name || !email || !password) {
-            return res.json({ success: false, message: "Missing Details" });
+            return res.status(400).json({ success: false, message: "Missing Details" });
+        }
+
+        // Check if user already exists
+        const existingUser = await userModel.findOne({ email });
+        if (existingUser) {
+            return res.status(400).json({ success: false, message: "User already exists" });
         }
 
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        const userData = { name, email, password: hashedPassword };
+        const userData = { name, email, password: hashedPassword, creditBalance: 0 };
         const newUser = new userModel(userData);
         const user = await newUser.save();
 
         const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
 
-        res.json({ success: true, token, user: { name: user.name } });
+        res.status(201).json({ success: true, token, user: { name: user.name, creditBalance: user.creditBalance } });
     } catch (error) {
-        console.log(error);
-        res.json({ success: false, message: error.message });
+        console.error("Register error:", error);
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 
 const LoginUser = async (req, res) => {
     try {
         const { email, password } = req.body;
-        const user = await userModel.findOne({ email });
+        if (!email || !password) {
+            return res.status(400).json({ success: false, message: "Email and password are required" });
+        }
 
+        const user = await userModel.findOne({ email });
         if (!user) {
-            return res.json({ success: false, message: "User doesn't exist" });
+            return res.status(404).json({ success: false, message: "User doesn't exist" });
         }
 
         const isMatch = await bcrypt.compare(password, user.password);
-
-        if (isMatch) {
-            const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
-            res.json({ success: true, token, user: { name: user.name } });
-        } else {
-            return res.json({ success: false, message: "Invalid Credentials" });
+        if (!isMatch) {
+            return res.status(401).json({ success: false, message: "Invalid credentials" });
         }
+
+        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
+        res.json({ 
+            success: true, 
+            token, 
+            user: { 
+                name: user.name,
+                creditBalance: user.creditBalance 
+            } 
+        });
     } catch (error) {
-        console.log(error);
-        res.json({ success: false, message: error.message });
+        console.error("Login error:", error);
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 
 const userCredits = async (req, res) => {
     try {
-        const { userId } = req.body;
+        const userId = req.user.id; // This should come from auth middleware
         const user = await userModel.findById(userId);
-        res.json({ success: true, credits: user.creditBalance, user: { name: user.name } });
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+        res.json({ 
+            success: true, 
+            credits: user.creditBalance, 
+            user: { 
+                name: user.name,
+                creditBalance: user.creditBalance 
+            } 
+        });
     } catch (error) {
-        console.log(error);
-        res.json({ success: false, message: error.message });
+        console.error("Credits check error:", error);
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 
-const razorInstance = new razorpay({
+// Initialize Razorpay
+const razorInstance = new Razorpay({
     key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET
+    key_secret: process.env.RAZORPAY_SECRET
 });
 
 const paymentRazorpay = async (req, res) => {
     try {
-        const { userId, planId } = req.body;
-        const userData = await userModel.findById(userId);
+        const userId = req.user.id; // This should come from auth middleware
+        const { planId } = req.body;
 
         if (!userId || !planId) {
-            return res.json({ success: false, message: 'Missing Details' });
+            return res.status(400).json({ success: false, message: 'Missing Details' });
         }
 
-        let credits, plan, date, amount;
+        const userData = await userModel.findById(userId);
+        if (!userData) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        let credits, plan, amount;
         switch (planId) {
             case 'Basic':
-                plan = 'Basic', credits = 100, amount = 10;
+                plan = 'Basic'; credits = 100; amount = 10;
                 break;
             case 'Advanced':
-                plan = 'Advanced', credits = 500, amount = 50;
+                plan = 'Advanced'; credits = 500; amount = 50;
                 break;
             case 'Business':
-                plan = 'Business', credits = 5000, amount = 250;
+                plan = 'Business'; credits = 5000; amount = 250;
                 break;
             default:
-                return res.json({ success: false, message: 'Plan not Found' });
+                return res.status(400).json({ success: false, message: 'Invalid plan selected' });
         }
 
-        date = Date.now();
-
         const transactionData = {
-            userId, credits, plan, date, amount,
-            payment: false // ✅ Added payment field
+            userId,
+            credits,
+            plan,
+            amount,
+            payment: false
         };
+
         const newTransaction = await transactionModel.create(transactionData);
 
         const options = {
-            amount: amount * 100,
-            currency: process.env.CURRENCY,
+            amount: amount * 100, // Amount in paise
+            currency: 'INR',
             receipt: newTransaction._id.toString()
         };
 
@@ -108,35 +141,51 @@ const paymentRazorpay = async (req, res) => {
         res.json({ success: true, order });
 
     } catch (error) {
-        console.log(error);
-        res.json({ success: false, message: error.message });
+        console.error("Payment creation error:", error);
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 
 const verifyRazorpay = async (req, res) => {
     try {
-        const { razorpay_order_id } = req.body;
+        const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+        
+        if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+            return res.status(400).json({ success: false, message: 'Missing payment details' });
+        }
+
         const orderInfo = await razorInstance.orders.fetch(razorpay_order_id);
+        if (!orderInfo) {
+            return res.status(404).json({ success: false, message: 'Order not found' });
+        }
 
         if (orderInfo.status === 'paid') {
             const transactionData = await transactionModel.findById(orderInfo.receipt);
+            if (!transactionData) {
+                return res.status(404).json({ success: false, message: 'Transaction not found' });
+            }
+
             if (transactionData.payment) {
-                return res.json({ success: false, message: 'Payment already processed' });
+                return res.status(400).json({ success: false, message: 'Payment already processed' });
             }
 
             const userData = await userModel.findById(transactionData.userId);
+            if (!userData) {
+                return res.status(404).json({ success: false, message: 'User not found' });
+            }
+
             const creditBalance = userData.creditBalance + transactionData.credits;
 
             await userModel.findByIdAndUpdate(userData._id, { creditBalance });
             await transactionModel.findByIdAndUpdate(transactionData._id, { payment: true });
 
-            res.json({ success: true, message: 'Credits Added' });
+            res.json({ success: true, message: 'Credits Added Successfully' });
         } else {
-            res.json({ success: false, message: 'Payment failed' });
+            res.status(400).json({ success: false, message: 'Payment verification failed' });
         }
     } catch (error) {
-        console.log(error);
-        res.json({ success: false, message: error.message });
+        console.error("Payment verification error:", error);
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 

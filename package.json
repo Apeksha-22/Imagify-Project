@@ -1,0 +1,21 @@
+{
+  "name": "imagify-project",
+  "version": "1.0.0",
+  "description": "Imagify - AI-Powered Image Generation\r Imagify is an advanced AI-based image generation tool that creates high-quality, realistic, and artistic images from user inputs. Leveraging deep learning models, Imagify enables users to generate stunning visuals with minimal effort. Whether for digital art, content creation, or design prototyping, Imagify provides an intuitive and powerful solution.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Apeksha-22/Imagify-Project.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Apeksha-22/Imagify-Project/issues"
+  },
+  "homepage": "https://github.com/Apeksha-22/Imagify-Project#readme"
+}

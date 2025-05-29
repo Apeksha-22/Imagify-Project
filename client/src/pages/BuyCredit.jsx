@@ -1,56 +1,80 @@
 import React, { useContext } from 'react'
 import { assets, plans } from '../assets/assets'
 import {AppContext} from '../context/AppContext'
-import { motion } from 'motion/react'
+import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import axios from 'axios'
-import { response } from 'express'
 
 const BuyCredit = () => {
+  const {user, backendUrl, loadCreditsData, token, setShowLogin} = useContext(AppContext)
+  const navigate = useNavigate()
 
-  const {user,backendUrl, loadCreditsData, token, setShowLogin} = useContext()
+  // Load Razorpay script
+  const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+      const script = document.createElement('script')
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js'
+      script.onload = () => {
+        resolve(true)
+      }
+      script.onerror = () => {
+        resolve(false)
+      }
+      document.body.appendChild(script)
+    })
+  }
 
-  const navigate = useNavigate(AppContext)
+  const initPay = async(order) => {
+    const res = await loadRazorpayScript()
+    
+    if (!res) {
+      toast.error('Razorpay SDK failed to load')
+      return
+    }
 
-  const initPay = async(order)=>{
     const options = {
       key: import.meta.env.VITE_RAZORPAY_KEY_ID,
       amount: order.amount,
-      currency:order.currency,
-      name:'Credits Payment',
+      currency: order.currency,
+      name: 'Credits Payment',
       description: 'Credits Payment',
       order_id: order.id,
       receipt: order.receipt,
-      handler: async(response)=>{
+      handler: async(response) => {
         try {
           const {data} = await axios.post(backendUrl + '/api/user/verify-razor', response, {headers:{token}})
           if(data.success){
             loadCreditsData()
             navigate('/')
+            toast.success('Payment successful!')
           }
         } catch (error) {
-          toast.error(error.message)
+          toast.error(error.response?.data?.message || 'Payment verification failed')
         }
       }
     }
-    const rzp = new window.RazorPay(options)
-    rzp.open();
+    
+    const rzp = new window.Razorpay(options)
+    rzp.open()
   }
-  const paymentrazorpay = async(planId)=>{
+
+  const paymentrazorpay = async(planId) => {
     try {
       if(!user){
-        setShowLogin(true);
+        setShowLogin(true)
+        return
       }
-      const {data} = await axios.post(backendUrl + '/api/user/pay-razor' , {planId}, {headers:{token}})
+      const {data} = await axios.post(backendUrl + '/api/user/pay-razor', {planId}, {headers:{token}})
 
       if(data.success){
         initPay(data.order)
       }
     } catch (error) {
-      toast.error(error.message);
+      toast.error(error.response?.data?.message || 'Failed to initialize payment')
     }
   }
+
   return (
     <motion.div 
     initial={{ opacity: 0.2, y: 100 }}
