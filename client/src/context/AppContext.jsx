@@ -48,8 +48,18 @@ const AppContextProvider = (props) => {
 
     const generateImage = async (prompt) => {
         try {
+            if (!user?._id) {
+                toast.error('Please login first');
+                setShowLogin(true);
+                return;
+            }
+            
             setLoading(true);
-            const { data } = await axios.post('/api/image/generate-image', { prompt });
+            const { data } = await axios.post('/api/image/generate-image', { 
+                prompt,
+                userId: user._id 
+            });
+            
             if (data.success) {
                 await loadCreditsData();
                 return data.resultImage;

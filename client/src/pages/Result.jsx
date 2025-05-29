@@ -1,6 +1,6 @@
 import React, { useContext, useState } from 'react';
 import { assets } from '../assets/assets';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { AppContext } from '../context/AppContext';
 
 const Result = () => {
@@ -8,32 +8,32 @@ const Result = () => {
   const [isImageLoaded, setIsImageLoaded] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [image, setImage] = useState(assets.sample_img_2);
-  const [error, setError] = useState(''); // State for error message
+  const [error, setError] = useState('');
 
   const {generateImage} = useContext(AppContext)
 
   const handleSubmit = async(e) => {
     e.preventDefault();
-    setLoading(true); // Clear previous error messages
-
-    if (!inputValue) {
-      const image = await generateImage(inputValue)
-      if(image){
-        setIsImageLoaded(true)
-        setImage(image)
-      }
+    if (!inputValue.trim()) {
+      setError('Please enter a description');
+      return;
     }
-
-    setLoading(false);
+    
+    setError('');
+    setLoading(true);
     setIsImageLoaded(false);
 
-    // Simulate async operation
-    setTimeout(() => {
+    try {
+      const generatedImage = await generateImage(inputValue);
+      if (generatedImage) {
+        setImage(generatedImage);
+        setIsImageLoaded(true);
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to generate image');
+    } finally {
       setLoading(false);
-      setIsImageLoaded(true);
-      setImage(assets.sample_img_1); // Simulate generating a new image
-      console.log(`Input Value: ${inputValue}`);
-    }, 6000);
+    }
   };
 
   return (
@@ -50,8 +50,8 @@ const Result = () => {
           <img
             className="max-w-sm rounded"
             src={image}
-            alt="Sample"
-            onLoad={() => setLoading(false)} // Stop loading when the image is loaded
+            alt="Generated"
+            onLoad={() => setLoading(false)}
           />
           <span
             className={`absolute h-1 bottom-0 left-0 bg-blue-500 ${
@@ -59,7 +59,7 @@ const Result = () => {
             }`}
           />
         </div>
-        {loading && <p>Loading...</p>}
+        {loading && <p className="text-center mt-2">Generating your image...</p>}
       </div>
 
       {!isImageLoaded && (
@@ -74,7 +74,7 @@ const Result = () => {
             />
             <button
               type="submit"
-              disabled={loading} // Disable button when loading
+              disabled={loading}
               className={`bg-zinc-900 rounded-full px-10 sm:px-16 py-3 ${
                 loading ? 'opacity-50 cursor-not-allowed' : ''
               }`}
@@ -82,7 +82,7 @@ const Result = () => {
               Generate
             </button>
           </div>
-          {error && <p className="text-red-500 mt-2">{error}</p>}
+          {error && <p className="text-red-500 mt-2 text-center">{error}</p>}
         </div>
       )}
 
