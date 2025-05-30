@@ -11,6 +11,7 @@ const AppContextProvider = (props) => {
     const [token, setToken] = useState(localStorage.getItem('token'));
     const [credit, setCredit] = useState(0);
     const [loading, setLoading] = useState(false);
+    const [isInitialLoad, setIsInitialLoad] = useState(true);
     const backendUrl = import.meta.env.VITE_BACKEND_URL;
     const navigate = useNavigate();
 
@@ -19,30 +20,35 @@ const AppContextProvider = (props) => {
 
     // Add axios interceptor for token
     axios.interceptors.request.use((config) => {
-        if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
+        const currentToken = localStorage.getItem('token');
+        if (currentToken) {
+            config.headers.Authorization = `Bearer ${currentToken}`;
         }
         return config;
     });
 
-    const loadCreditsData = async () => {
+    const loadCreditsData = async (showError = true) => {
         try {
+            if (!token) return;
+            
             setLoading(true);
             const { data } = await axios.get('/api/user/credits');
             if (data.success) {
                 setCredit(data.credits);
                 setUser(data.user);
-            } else {
+            } else if (showError) {
                 toast.error(data.message);
             }
         } catch (error) {
             console.error('Credits loading error:', error);
             if (error.response?.status === 401) {
-                logout();
+                silentLogout();
+            } else if (showError) {
+                toast.error(error.response?.data?.message || 'Failed to load credits');
             }
-            toast.error(error.response?.data?.message || 'Failed to load credits');
         } finally {
             setLoading(false);
+            setIsInitialLoad(false);
         }
     };
 
@@ -61,34 +67,43 @@ const AppContextProvider = (props) => {
             });
             
             if (data.success) {
-                await loadCreditsData();
+                await loadCreditsData(false);
                 return data.resultImage;
             } else {
                 toast.error(data.message);
-                await loadCreditsData();
+                await loadCreditsData(false);
                 if (data.creditBalance === 0) {
                     navigate('/buy');
                 }
             }
         } catch (error) {
             console.error('Image generation error:', error);
-            toast.error(error.response?.data?.message || 'Failed to generate image');
+            if (error.response?.status === 401) {
+                silentLogout();
+                setShowLogin(true);
+            } else {
+                toast.error(error.response?.data?.message || 'Failed to generate image');
+            }
         } finally {
             setLoading(false);
         }
     };
 
-    const logout = () => {
+    const silentLogout = () => {
         localStorage.removeItem('token');
         setToken(null);
         setUser(null);
         setCredit(0);
+    };
+
+    const logout = () => {
+        silentLogout();
         toast.info('Logged out successfully');
     };
 
     useEffect(() => {
         if (token) {
-            loadCreditsData();
+            loadCreditsData(!isInitialLoad);
         } else {
             setUser(null);
             setCredit(0);

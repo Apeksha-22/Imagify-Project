@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "server": "nodemon serve.js"
+    "dev": "nodemon server.js"
   },
   "author": "",
   "license": "ISC",

@@ -48,24 +48,19 @@ const Login = () => {
             const { data } = await axios.post(backendUrl + endpoint, payload)
 
             if (data.success) {
+                localStorage.setItem('token', data.token)
                 setToken(data.token)
                 setUser(data.user)
-                localStorage.setItem('token', data.token)
                 setShowLogin(false)
-                toast.success(state === 'Login' ? 'Logged in successfully!' : 'Account created successfully!')
-            } else {
-                toast.error(data.message || `${state} failed`)
+                toast.success(state === 'Login' ? 'Welcome back!' : 'Account created successfully!')
             }
         } catch (error) {
             console.error('Auth error:', error)
-            if (error.response) {
-                // Server responded with an error
-                toast.error(error.response.data?.message || `${state} failed`)
-            } else if (error.request) {
-                // Request was made but no response
+            if (error.response?.data?.message) {
+                toast.error(error.response.data.message)
+            } else if (!error.response) {
                 toast.error('Unable to connect to server. Please check your internet connection.')
             } else {
-                // Something else happened
                 toast.error('An unexpected error occurred')
             }
         } finally {

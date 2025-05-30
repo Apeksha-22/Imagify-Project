@@ -24,7 +24,7 @@
     "razorpay": "^2.9.6",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^7.1.1",
+    "react-router-dom": "^6.22.3",
     "react-toastify": "^11.0.3",
     "safe-buffer": "^5.2.1",
     "stream-browserify": "^3.0.0",
